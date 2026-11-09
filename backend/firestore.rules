@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        getUserData().role == 'admin'
+      );
+    }
+
+    function isInstructor() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'instructor' ||
+        getUserData().role == 'instructor'
+      );
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isUser(userId) || isAdmin() || isInstructor());
+      allow create: if isUser(userId) && request.resource.data.role == 'customer';
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (isUser(userId) && 
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'remainingCredits', 'status']))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Instructors Collection
+    match /instructors/{instructorId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Classes Collection
+    match /classes/{classId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isInstructor() && resource.data.instructorId == request.auth.uid
+      );
+    }
+
+    // Packages Collection
+    match /packages/{packageId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Memberships Collection
+    match /memberships/{membershipId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // Bookings Collection: Mutated server-side via Cloud Functions (Admin SDK) or by Admin
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() || 
+        isInstructor()
+      );
+      allow write: if isAdmin();
+    }
+
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Payments Collection
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Attendance Collection
+    match /attendance/{attendanceId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() || 
+        isInstructor()
+      );
+      allow write: if isAdmin() || isInstructor();
+    }
+
+    // Activity Logs Collection
+    match /activityLogs/{logId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Immutable audit log
+    }
+
+    // Studio Settings Collection
+    match /studioSettings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}
+

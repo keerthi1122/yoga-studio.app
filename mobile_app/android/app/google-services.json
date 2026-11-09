@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "799318188921",
+    "project_id": "yogastudio-2d89b",
+    "storage_bucket": "yogastudio-2d89b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:799318188921:android:d4936138e4e49b9ad585a8",
+        "android_client_info": {
+          "package_name": "com.yogastudio.mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCOQxD5yGbo82sydbfq6eYlhsGLsuLXWyk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

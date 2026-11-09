@@ -1,0 +1,73 @@
+# Dependencies
+**/node_modules/
+**/.pnp/
+**/.pnp.js
+
+# Build Outputs
+admin_dashboard/dist/
+admin_dashboard/dist-ssr/
+backend/functions/lib/
+mobile_app/build/
+**/build/
+*.tsbuildinfo
+
+# Flutter / Dart
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/doc/api/
+mobile_app/coverage/
+mobile_app/.widget_preview/
+
+# Android
+**/.gradle/
+**/local.properties
+**/captures/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+*.apk
+*.ap_
+*.aab
+
+# iOS
+**/ios/Flutter/.last_build_id
+**/ios/Pods/
+**/ios/.symlinks/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+xcuserdata/
+
+# Firebase Cache & Logs
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# Environment & Temporary
+.env
+.env.local
+.env.*.local
+temp_*.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS & Editor Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*.iml
+*.ipr
+*.iws
