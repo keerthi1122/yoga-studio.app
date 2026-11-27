@@ -1,15 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Send, CheckCircle2, Clock, Megaphone } from 'lucide-react';
-
-interface StudioNotification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'announcement' | 'schedule_change' | 'reminder' | 'payment';
-  targetAudience: 'all_customers' | 'active_members' | 'today_attendees';
-  sentAt: string;
-  status: 'sent' | 'scheduled';
-}
+import { StudioNotification } from '../../types';
+import { subscribeToNotifications, sendStudioNotification } from '../../services/notificationService';
 
 export const NotificationManager: React.FC = () => {
   const [notifications, setNotifications] = useState<StudioNotification[]>([]);
@@ -20,21 +12,21 @@ export const NotificationManager: React.FC = () => {
   const [targetAudience, setTargetAudience] = useState<'all_customers' | 'active_members' | 'today_attendees'>('all_customers');
   const [sentSuccess, setSentSuccess] = useState(false);
 
-  const handleSendNotification = (e: React.FormEvent) => {
+  useEffect(() => {
+    return subscribeToNotifications(setNotifications);
+  }, []);
+
+  const handleSendNotification = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !message.trim()) return;
 
-    const newNotif: StudioNotification = {
-      id: `notif_${Date.now()}`,
+    await sendStudioNotification({
       title: title.trim(),
       message: message.trim(),
       type,
       targetAudience,
-      sentAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }),
-      status: 'sent',
-    };
+    });
 
-    setNotifications([newNotif, ...notifications]);
     setTitle('');
     setMessage('');
     setSentSuccess(true);
@@ -42,13 +34,13 @@ export const NotificationManager: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 page-enter">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E9DCC5]/70">
         <div>
           <h1 className="font-serif text-3xl font-bold text-dark">Studio Broadcast & Push Notifications</h1>
           <p className="text-sm text-dark-muted mt-1">
-            Dispatch real-time announcements, schedule change alerts, and automated booking reminders to mobile yogis.
+            Dispatch real-time announcements synced directly to the public website ticker and practitioner apps.
           </p>
         </div>
       </div>
@@ -56,7 +48,7 @@ export const NotificationManager: React.FC = () => {
       {sentSuccess && (
         <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          <span>Notification broadcasted successfully to connected practitioner devices.</span>
+          <span>Notification broadcasted and persisted to live public ticker!</span>
         </div>
       )}
 
@@ -68,7 +60,7 @@ export const NotificationManager: React.FC = () => {
             <h2 className="font-serif text-lg font-bold text-dark">Compose Broadcast</h2>
           </div>
           <p className="text-xs text-dark-muted mb-6">
-            Broadcast messages will display on the customer mobile home banner and trigger push notifications where configured.
+            The latest broadcast appears on the top announcement bar of the public GVYA website and mobile clients.
           </p>
 
           <form onSubmit={handleSendNotification} className="space-y-4">
@@ -82,7 +74,7 @@ export const NotificationManager: React.FC = () => {
                 <option value="announcement">Studio Announcement</option>
                 <option value="schedule_change">Class Schedule Change</option>
                 <option value="reminder">Booking / Expiry Reminder</option>
-                <option value="payment">Payment & Credit Notice</option>
+                <option value="payment">Payment & Offer Notice</option>
               </select>
             </div>
 
@@ -93,9 +85,9 @@ export const NotificationManager: React.FC = () => {
                 onChange={(e) => setTargetAudience(e.target.value as any)}
                 className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
               >
-                <option value="all_customers">All Registered Yogis (428 users)</option>
-                <option value="active_members">Active Pass Holders Only (312 users)</option>
-                <option value="today_attendees">Today's Registered Students (47 users)</option>
+                <option value="all_customers">All Public Visitors & Yogis</option>
+                <option value="active_members">Active Pass Holders Only</option>
+                <option value="today_attendees">Today's Registered Students</option>
               </select>
             </div>
 
@@ -106,7 +98,7 @@ export const NotificationManager: React.FC = () => {
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Special Holiday Flow Schedule"
+                placeholder="e.g. Weekend Aerial Silk Workshop Open!"
                 className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
               />
             </div>
@@ -118,7 +110,7 @@ export const NotificationManager: React.FC = () => {
                 rows={4}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Enter peaceful message to share with practitioners..."
+                placeholder="Enter message to share with visitors and members..."
                 className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
               />
             </div>
@@ -128,7 +120,7 @@ export const NotificationManager: React.FC = () => {
               className="w-full py-2.5 bg-burgundy hover:bg-burgundy-dark text-white rounded-xl text-xs font-semibold shadow-md shadow-burgundy/20 flex items-center justify-center gap-2 transition-all"
             >
               <Send className="w-4 h-4" />
-              <span>Broadcast to Mobile App</span>
+              <span>Publish Broadcast</span>
             </button>
           </form>
         </div>
@@ -138,7 +130,7 @@ export const NotificationManager: React.FC = () => {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="font-serif text-lg font-bold text-dark">Recent Broadcast History</h2>
-              <p className="text-xs text-dark-muted">Chronological record of push messages sent to mobile yogis</p>
+              <p className="text-xs text-dark-muted">Persisted chronological record of active broadcasts</p>
             </div>
             <span className="text-xs font-semibold text-dark-muted">
               Total Sent: <strong className="text-burgundy">{notifications.length}</strong>
@@ -186,4 +178,3 @@ export const NotificationManager: React.FC = () => {
     </div>
   );
 };
-

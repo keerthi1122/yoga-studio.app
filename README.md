@@ -4,6 +4,20 @@ A comprehensive, production-ready full-stack Yoga Studio Booking and Operations 
 
 ---
 
+## 🚀 1-Click Launchers (Admin Dashboard)
+
+Launch and access the web dashboard anytime with a single click:
+
+- **`start_app.vbs`** (Recommended): Double-click to start the dev server silently in background & automatically open browser to `https://localhost:5173/`. Includes Live Hot-Reloading for file edits in `admin_dashboard/src/`.
+- **`start_app.bat`**: Interactive console launcher with live compilation and HMR logs.
+- **`stop_app.bat`**: Double-click to instantly stop all active servers and free port 5173.
+- **`start_preview.bat`**: Builds production bundle and starts local/LAN persistent server on `http://localhost:4173/`.
+- **`deploy_firebase.bat`**: Automated Firebase Hosting deployment (Temporary preview channel or live hosting).
+
+See [QUICK_START_LAUNCHER_GUIDE.md](file:///c:/Users/aswat/Downloads/yoga-studio.app-main/QUICK_START_LAUNCHER_GUIDE.md) for full instructions.
+
+---
+
 ## Architecture & Tech Stack
 
 ```

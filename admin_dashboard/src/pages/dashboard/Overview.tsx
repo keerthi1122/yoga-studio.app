@@ -5,82 +5,143 @@ import {
   CalendarCheck, 
   Video, 
   MapPin, 
-  DollarSign, 
+  IndianRupee, 
   AlertCircle,
   Clock,
   ArrowUpRight,
-  TrendingUp
+  TrendingUp,
+  ShoppingBag
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { subscribeToClasses } from '../../services/classService';
 import { subscribeToCustomers } from '../../services/customerService';
 import { subscribeToBookings } from '../../services/bookingService';
 import { subscribeToPayments } from '../../services/paymentService';
-import { YogaClass, User, Booking, Payment } from '../../types';
+import { subscribeToEnquiries } from '../../services/membershipService';
+import { YogaClass, User, Booking, Payment, MembershipEnquiry } from '../../types';
 
 export const Overview: React.FC = () => {
   const [classes, setClasses] = useState<YogaClass[]>([]);
   const [customers, setCustomers] = useState<User[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [enquiries, setEnquiries] = useState<MembershipEnquiry[]>([]);
 
   useEffect(() => {
     const unsubClasses = subscribeToClasses(setClasses);
     const unsubCustomers = subscribeToCustomers(setCustomers);
     const unsubBookings = subscribeToBookings(setBookings);
     const unsubPayments = subscribeToPayments(setPayments);
+    const unsubEnquiries = subscribeToEnquiries(setEnquiries);
 
     return () => {
       unsubClasses();
       unsubCustomers();
       unsubBookings();
       unsubPayments();
+      unsubEnquiries();
     };
   }, []);
 
   const totalCustomers = customers.length;
   const activeMemberships = customers.filter(c => !!c.activeMembershipId).length;
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayClasses = classes.filter(c => c.startTime ? c.startTime.startsWith(todayStr) : true);
-  const todayBookingsCount = bookings.filter(b => (b.classStartTime && b.classStartTime.startsWith(todayStr)) || b.bookingStatus === 'confirmed').length;
-  const monthlyRevenue = payments
+  const confirmedBookings = bookings.filter(b => b.bookingStatus === 'confirmed' || b.bookingStatus === 'attended');
+  const todayClasses = classes.filter(c => c.status !== 'cancelled');
+  const totalRevenue = payments
     .filter(p => p.paymentStatus === 'verified' || p.paymentStatus === 'paid')
-    .reduce((sum, p) => sum + p.amount, 0);
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-  const pendingBankSlipsCount = payments.filter(p => p.paymentStatus === 'pending').length;
+  const pendingPaymentsCount = payments.filter(p => p.paymentStatus === 'pending').length;
+  const publicPurchasesCount = enquiries.filter(e => e.submissionType === 'purchase').length;
+  const newTrialsCount = enquiries.filter(e => e.status === 'new').length;
 
   const stats = [
-    { title: 'Total Customers', value: totalCustomers.toString(), change: '+12% this month', icon: Users, color: 'text-burgundy', bg: 'bg-burgundy-50' },
-    { title: 'Active Memberships', value: activeMemberships.toString(), change: `${totalCustomers > 0 ? Math.round((activeMemberships / totalCustomers) * 100) : 0}% retention`, icon: Sparkles, color: 'text-sage-dark', bg: 'bg-sage-50' },
-    { title: "Today's Bookings", value: todayBookingsCount.toString(), change: `${todayClasses.length} sessions scheduled`, icon: CalendarCheck, color: 'text-blue-700', bg: 'bg-blue-50' },
-    { title: 'Monthly Revenue', value: `$${monthlyRevenue.toLocaleString()}`, change: '+9.4% vs last mo', icon: DollarSign, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+    {
+      title: 'Total Members',
+      value: totalCustomers.toString(),
+      change: `${activeMemberships} with active plans`,
+      icon: Users,
+      color: 'text-burgundy',
+      bg: 'bg-burgundy-50',
+    },
+    {
+      title: 'Plan Conversion',
+      value: `${totalCustomers > 0 ? Math.round((activeMemberships / totalCustomers) * 100) : 0}%`,
+      change: `${publicPurchasesCount} public online orders`,
+      icon: Sparkles,
+      color: 'text-sage-dark',
+      bg: 'bg-sage-50',
+    },
+    {
+      title: 'Active Bookings',
+      value: confirmedBookings.length.toString(),
+      change: `${todayClasses.length} active sessions`,
+      icon: CalendarCheck,
+      color: 'text-blue-700',
+      bg: 'bg-blue-50',
+    },
+    {
+      title: 'Collected Revenue',
+      value: `₹${totalRevenue.toLocaleString('en-IN')}`,
+      change: `${payments.filter(p => p.paymentStatus === 'verified' || p.paymentStatus === 'paid').length} settled payments`,
+      icon: IndianRupee,
+      color: 'text-emerald-700',
+      bg: 'bg-emerald-50',
+    },
   ];
 
-  // Daily bookings data for weekly SVG chart
-  const weeklyData = [
-    { day: 'Mon', count: 38, height: 60 },
-    { day: 'Tue', count: 42, height: 70 },
-    { day: 'Wed', count: 45, height: 75 },
-    { day: 'Thu', count: 41, height: 68 },
-    { day: 'Fri', count: 49, height: 85 },
-    { day: 'Sat', count: 58, height: 100 },
-    { day: 'Sun', count: 52, height: 90 },
-  ];
+  // Live class occupancy bar chart data
+  const classChartData = classes.slice(0, 6).map((c) => {
+    const pct = c.capacity > 0 ? Math.min(100, Math.round(((c.bookedSeats || 0) / c.capacity) * 100)) : 0;
+    return {
+      label: c.category.split(' ')[0] || 'Yoga',
+      title: c.title,
+      count: c.bookedSeats || 0,
+      height: Math.max(12, pct),
+    };
+  });
+
+  const recentPublicOrders = [...enquiries, ...payments.slice(0, 3).map((p): MembershipEnquiry => ({
+    enquiryId: p.paymentId,
+    submissionType: 'purchase',
+    fullName: p.userFullName,
+    phone: p.phone || 'Verified Member',
+    email: p.email,
+    category: p.packageId.includes('kid') ? 'kids' : 'pro',
+    planId: p.packageId,
+    planName: p.packageName,
+    amountPaid: p.amount,
+    paymentMethod: p.paymentMethod === 'bank_transfer' ? 'bank_transfer' : p.paymentMethod === 'card' ? 'card' : 'upi',
+    transactionId: p.transactionId,
+    paymentStatus: p.paymentStatus,
+    selectedProps: p.selectedChoices ? [p.selectedChoices] : [],
+    isFreeTrial: false,
+    status: p.paymentStatus === 'verified' || p.paymentStatus === 'paid' ? 'enrolled' : 'new',
+    createdAt: p.createdAt,
+  }))].slice(0, 6);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 page-enter">
       {/* Welcome Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#E9DCC5]/70">
         <div>
           <h1 className="font-serif text-3xl font-bold text-dark">Studio Executive Dashboard</h1>
-          <p className="text-sm text-dark-muted mt-1">Real-time studio operations, live stream monitoring, and revenue overview.</p>
+          <p className="text-sm text-dark-muted mt-1">
+            Live sync of public purchases, chosen plans, payments received, class bookings, and streaming rooms.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <Link
-            to="/classes"
+            to="/admin/memberships"
+            className="px-4 py-2 bg-white border border-[#E9DCC5] hover:border-burgundy text-dark rounded-xl text-xs font-semibold shadow-sm transition-all"
+          >
+            View Member Purchases ({enquiries.length})
+          </Link>
+          <Link
+            to="/admin/classes"
             className="px-4 py-2 bg-burgundy hover:bg-burgundy-dark text-white rounded-xl text-xs font-semibold shadow-sm transition-all flex items-center gap-2"
           >
-            <span>+ Schedule New Class</span>
+            <span>+ Schedule Class</span>
           </Link>
         </div>
       </div>
@@ -97,7 +158,7 @@ export const Overview: React.FC = () => {
                   <Icon className="w-5 h-5" />
                 </div>
               </div>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="text-2xl font-serif font-bold text-dark">{s.value}</span>
                 <span className="text-[11px] font-medium text-sage-dark flex items-center">
                   <ArrowUpRight className="w-3 h-3 inline" />
@@ -109,65 +170,143 @@ export const Overview: React.FC = () => {
         })}
       </div>
 
-      {/* Analytics Visual Chart & Weekly Cadence */}
+      {/* Live Public Purchases & Selections Feed */}
+      <div className="bg-white rounded-3xl p-6 border border-[#E9DCC5] shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
+          <div>
+            <h2 className="font-serif text-lg font-bold text-dark flex items-center gap-2">
+              <ShoppingBag className="w-4 h-4 text-burgundy" />
+              <span>What Members Bought, Chose & Paid (Live Public Sync)</span>
+            </h2>
+            <p className="text-xs text-dark-muted">
+              Every plan purchase, training mode, prop selection, free trial, and payment submitted on the public site appears here immediately.
+            </p>
+          </div>
+          <Link to="/admin/payments" className="text-xs font-semibold text-burgundy hover:underline">
+            Full Payment Ledger &rarr;
+          </Link>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#FAF6EE] border-b border-[#E9DCC5] uppercase tracking-wider text-dark-muted font-bold text-[10px]">
+              <tr>
+                <th className="py-3 px-4">Member / Buyer</th>
+                <th className="py-3 px-4">Plan / Item Bought</th>
+                <th className="py-3 px-4">Mode & Props Chosen</th>
+                <th className="py-3 px-4">Paid Amount</th>
+                <th className="py-3 px-4">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E9DCC5]/60">
+              {recentPublicOrders.map((item) => (
+                <tr key={item.enquiryId} className="hover:bg-[#FAF6EE]/40">
+                  <td className="py-3 px-4">
+                    <p className="font-bold text-dark">{item.fullName}</p>
+                    <p className="text-[11px] text-dark-muted">{item.phone}</p>
+                  </td>
+                  <td className="py-3 px-4">
+                    <p className="font-semibold text-dark">{item.planName || 'Consultation'}</p>
+                    {item.transactionId && (
+                      <span className="text-[10px] font-mono text-dark-muted">Ref: {item.transactionId}</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-wrap gap-1">
+                      {item.selectedMode && (
+                        <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold uppercase text-[10px]">
+                          {item.selectedMode}
+                        </span>
+                      )}
+                      {item.selectedProps?.slice(0, 2).map((p, idx) => (
+                        <span key={idx} className="px-2 py-0.5 rounded bg-cream text-dark text-[10px] border border-beige">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 font-bold text-dark">
+                    {(item.amountPaid || 0) > 0 ? (
+                      <span className="text-emerald-700 font-serif text-sm">₹{(item.amountPaid || 0).toLocaleString('en-IN')}</span>
+                    ) : (
+                      <span className="text-blue-700 text-[11px]">₹0 (Trial / Booking)</span>
+                    )}
+                    {item.paymentMethod && item.paymentMethod !== 'free_trial' && (
+                      <span className="block text-[10px] text-dark-muted uppercase">{item.paymentMethod}</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      item.status === 'enrolled' || item.paymentStatus === 'verified'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-amber-50 text-amber-800'
+                    }`}>
+                      {item.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Analytics Visual Chart & Action Required */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-[#E9DCC5] shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="font-serif text-lg font-bold text-dark flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-burgundy" />
-                <span>Weekly Practitioner Attendance Trajectory</span>
+                <span>Live Batch Seat Occupancy</span>
               </h2>
-              <p className="text-xs text-dark-muted">Total reservations across online streaming and sanctuary mats</p>
+              <p className="text-xs text-dark-muted">Real-time booked seats across active studio and video classes</p>
             </div>
             <span className="text-xs font-bold text-sage-dark bg-sage-50 px-2.5 py-1 rounded-full border border-sage/30">
-              325 Total Yogis this Week
+              {classes.reduce((acc, c) => acc + (c.bookedSeats || 0), 0)} Total Enrolled Seats
             </span>
           </div>
 
-          {/* Responsive SVG Bar Chart */}
           <div className="h-48 flex items-end justify-between gap-3 pt-6 pb-2 px-4 bg-[#FAF6EE]/50 rounded-2xl border border-[#E9DCC5]/60">
-            {weeklyData.map((d, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                <span className="text-[10px] font-bold text-dark group-hover:text-burgundy opacity-0 group-hover:opacity-100 transition-opacity">
+            {classChartData.map((d, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group" title={d.title}>
+                <span className="text-[10px] font-bold text-dark group-hover:text-burgundy transition-opacity">
                   {d.count}
                 </span>
                 <div
-                  className="w-full max-w-[36px] bg-gradient-to-t from-burgundy to-burgundy-light rounded-t-xl transition-all group-hover:brightness-110 shadow-sm"
+                  className="w-full max-w-[40px] bg-gradient-to-t from-burgundy to-burgundy-light rounded-t-xl transition-all group-hover:brightness-110 shadow-sm"
                   style={{ height: `${d.height}%` }}
                 />
-                <span className="text-xs font-medium text-dark-muted">{d.day}</span>
+                <span className="text-[11px] font-medium text-dark-muted truncate max-w-full">{d.label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Action Required: Pending Bank Slips & Status */}
+        {/* Action Required */}
         <div className="bg-white rounded-3xl p-6 border border-[#E9DCC5] shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 text-burgundy mb-2">
               <AlertCircle className="w-5 h-5" />
               <h2 className="font-serif text-lg font-bold text-dark">Action Required</h2>
             </div>
-            <p className="text-xs text-dark-muted mb-4">Manual bank transfers and pending membership approvals</p>
+            <p className="text-xs text-dark-muted mb-4">Pending payments, trial leads, and live broadcast controls</p>
 
             <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/60 mb-4">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-amber-900">{pendingBankSlipsCount} Bank Transfer Receipt{pendingBankSlipsCount === 1 ? '' : 's'}</span>
+                <span className="text-xs font-bold text-amber-900">{pendingPaymentsCount} Pending Payment{pendingPaymentsCount === 1 ? '' : 's'}</span>
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
-                  {pendingBankSlipsCount > 0 ? 'Pending' : 'All Clear'}
+                  {pendingPaymentsCount > 0 ? 'Review' : 'All Clear'}
                 </span>
               </div>
               <p className="text-xs text-amber-800">
-                {pendingBankSlipsCount > 0 
-                  ? 'Customers submitted transfer slips requiring staff review to activate membership credits.'
-                  : 'All payment submissions and wire transfer receipts have been verified.'}
+                {newTrialsCount} new trial enquiries &bull; {pendingPaymentsCount} payment verification(s) queued.
               </p>
-              <Link 
-                to="/payments"
+              <Link
+                to="/admin/payments"
                 className="mt-3 inline-block text-xs font-bold text-amber-900 underline hover:text-amber-950"
               >
-                Review Receipts &rarr;
+                Review Payments &rarr;
               </Link>
             </div>
 
@@ -177,7 +316,7 @@ export const Overview: React.FC = () => {
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Operational</span>
               </div>
               <p className="text-xs text-dark-muted">
-                Jitsi Meet server <code className="text-burgundy font-mono">meet.jit.si</code> active. 0 packet loss.
+                Jitsi Meet server <code className="text-burgundy font-mono">meet.jit.si</code> active for live classes.
               </p>
             </div>
           </div>
@@ -185,33 +324,33 @@ export const Overview: React.FC = () => {
           <div className="mt-6 pt-4 border-t border-[#E9DCC5]/70 flex items-center justify-between text-xs text-dark-muted">
             <span className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-sage-dark" />
-              Next session in 42 mins
+              {classes.filter(c => c.bookingType === 'online').length} online video rooms ready
             </span>
-            <Link to="/reports" className="font-semibold text-burgundy hover:underline">
-              Analytics &rarr;
+            <Link to="/admin/live-sessions" className="font-semibold text-burgundy hover:underline">
+              Live Console &rarr;
             </Link>
           </div>
         </div>
       </div>
 
-      {/* Today's Classes Breakdown */}
+      {/* Upcoming Classes */}
       <div className="bg-white rounded-3xl p-6 border border-[#E9DCC5] shadow-sm">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="font-serif text-lg font-bold text-dark">Today's Class Schedule</h2>
-            <p className="text-xs text-dark-muted">Online and studio attendance tracking</p>
+            <h2 className="font-serif text-lg font-bold text-dark">Active Class Schedule</h2>
+            <p className="text-xs text-dark-muted">Online video calls and in-studio attendance</p>
           </div>
-          <Link to="/classes" className="text-xs font-semibold text-burgundy hover:underline">
-            View Calendar &rarr;
+          <Link to="/admin/classes" className="text-xs font-semibold text-burgundy hover:underline">
+            Manage Schedule &rarr;
           </Link>
         </div>
 
         <div className="space-y-3">
           {todayClasses.length === 0 ? (
-            <div className="p-8 text-center text-xs text-dark-muted">No classes scheduled for today.</div>
+            <div className="p-8 text-center text-xs text-dark-muted">No classes scheduled.</div>
           ) : (
             todayClasses.map((session) => (
-              <div 
+              <div
                 key={session.classId}
                 className="p-4 rounded-2xl border border-[#E9DCC5]/70 bg-[#FAF6EE]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-burgundy/40 transition-colors"
               >
@@ -231,7 +370,7 @@ export const Overview: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-xs text-dark-muted mt-0.5">
-                      Teacher: <span className="font-medium text-dark">{session.instructorName}</span> &bull; {session.startTime} - {session.endTime}
+                      Teacher: <span className="font-medium text-dark">{session.instructorName}</span> &bull; {new Date(session.startTime).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -243,10 +382,10 @@ export const Overview: React.FC = () => {
                   </div>
                   {session.bookingType === 'online' && (
                     <Link
-                      to="/live-sessions"
+                      to="/admin/live-sessions"
                       className="px-3.5 py-1.5 rounded-xl bg-burgundy hover:bg-burgundy-dark text-white font-medium text-xs shadow-sm transition-colors"
                     >
-                      Live Host
+                      Launch Host
                     </Link>
                   )}
                 </div>

@@ -90,7 +90,7 @@ export const PackageList: React.FC = () => {
         name: formName,
         description: formDescription,
         price: Number(formPrice),
-        currency: 'USD',
+        currency: 'INR',
         credits: formUnlimited ? -1 : Number(formCredits),
         validityDays: Number(formValidity),
         unlimited: formUnlimited,
@@ -240,7 +240,7 @@ export const PackageList: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Price ($ USD)</label>
+                  <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Price (₹ INR)</label>
                   <input
                     type="number"
                     min="1"

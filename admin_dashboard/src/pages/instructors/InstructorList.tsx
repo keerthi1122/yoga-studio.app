@@ -8,6 +8,8 @@ import {
   toggleInstructorActive 
 } from '../../services/instructorService';
 
+import { sanitizeExternalUrl, sanitizeText } from '../../utils/security';
+
 export const InstructorList: React.FC = () => {
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,39 +47,34 @@ export const InstructorList: React.FC = () => {
 
   const handleSaveInstructor = async (e: React.FormEvent) => {
     e.preventDefault();
-    const specs = formSpecialties.split(',').map((s) => s.trim()).filter(Boolean);
+    const specs = formSpecialties.split(',').map((s) => sanitizeText(s, 50)).filter(Boolean);
+    const safeName = sanitizeText(formName, 80);
+    const safeBio = sanitizeText(formBio, 400);
+    const safeImg =
+      sanitizeExternalUrl(formImage) ||
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80';
 
     if (editingInstructor) {
       try {
         await updateInstructor(editingInstructor.instructorId, {
-          name: formName,
-          bio: formBio,
-          profileImage: formImage,
+          name: safeName,
+          bio: safeBio,
+          profileImage: safeImg,
           specialties: specs,
         });
-      } catch (_) {
-        setInstructors(
-          instructors.map((ins) =>
-            ins.instructorId === editingInstructor.instructorId
-              ? { ...ins, name: formName, bio: formBio, profileImage: formImage, specialties: specs }
-              : ins
-          )
-        );
-      }
+      } catch (_) {}
     } else {
       const newInsData = {
-        name: formName,
-        bio: formBio,
-        profileImage: formImage || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
+        name: safeName,
+        bio: safeBio,
+        profileImage: safeImg,
         specialties: specs,
         active: true,
       };
 
       try {
         await createInstructor(newInsData);
-      } catch (_) {
-        setInstructors([...instructors, { ...newInsData, instructorId: `ins_${Date.now()}` }]);
-      }
+      } catch (_) {}
     }
     setIsModalOpen(false);
   };

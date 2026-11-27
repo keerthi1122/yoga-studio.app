@@ -32,27 +32,34 @@ service cloud.firestore {
     // Users Collection
     match /users/{userId} {
       allow read: if isAuthenticated() && (isUser(userId) || isAdmin() || isInstructor());
-      allow create: if isUser(userId) && request.resource.data.role == 'customer';
+      allow create: if isUser(userId)
+        && request.resource.data.role == 'customer'
+        && request.resource.data.remainingCredits == 0
+        && request.resource.data.status == 'active';
       allow update: if isAuthenticated() && (
-        isAdmin() || 
-        (isUser(userId) && 
-         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'remainingCredits', 'status']))
+        isAdmin() ||
+        (isUser(userId) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+           'role', 'remainingCredits', 'status', 'activeMembershipId'
+         ]))
       );
       allow delete: if isAdmin();
     }
 
     // Instructors Collection
     match /instructors/{instructorId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
     // Classes Collection
     match /classes/{classId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
-        isInstructor() && resource.data.instructorId == request.auth.uid
+        isInstructor()
+        && resource.data.instructorId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['capacity', 'bookedSeats'])
       );
     }
 
@@ -62,19 +69,41 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Memberships Collection
-    match /memberships/{membershipId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.userId == request.auth.uid);
-      allow update: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow delete: if isAdmin();
+    // Official GVYA Membership Plans
+    match /membershipPlans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
-    // Bookings Collection: Mutated server-side via Cloud Functions (Admin SDK) or by Admin
+    // Public Membership & Free Trial Enquiries: schema-validated creation, admin-only read/manage
+    match /membershipEnquiries/{enquiryId} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.fullName is string
+        && request.resource.data.fullName.size() >= 2
+        && request.resource.data.fullName.size() <= 120
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() >= 7
+        && request.resource.data.phone.size() <= 30
+        && request.resource.data.status in ['new', 'enrolled']
+        && (!('amountPaid' in request.resource.data) || (
+          request.resource.data.amountPaid is number
+          && request.resource.data.amountPaid >= 0
+          && request.resource.data.amountPaid <= 500000
+        ));
+      allow update, delete: if isAdmin();
+    }
+
+    // Memberships Collection: STRICTLY admin/Cloud Function writable (prevents free-unlimited exploit!)
+    match /memberships/{membershipId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Bookings Collection: Mutated server-side via Cloud Functions (Admin SDK) or Admin
     match /bookings/{bookingId} {
       allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || 
-        isAdmin() || 
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
         isInstructor()
       );
       allow write: if isAdmin();
@@ -82,39 +111,47 @@ service cloud.firestore {
 
     // Notifications Collection
     match /notifications/{notificationId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Payments Collection
+    // Payments Collection: Customers may only create 'pending' positive-amount submissions without self-verifying
     match /payments/{paymentId} {
       allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || 
+        resource.data.userId == request.auth.uid ||
         isAdmin()
       );
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.paymentStatus == 'pending'
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 500000
+        && !('verifiedBy' in request.resource.data);
+      allow update, delete: if isAdmin();
     }
 
     // Attendance Collection
     match /attendance/{attendanceId} {
       allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || 
-        isAdmin() || 
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
         isInstructor()
       );
       allow write: if isAdmin() || isInstructor();
     }
 
-    // Activity Logs Collection
+    // Activity Logs Collection: Immutable audit trail, ownership enforced
     match /activityLogs/{logId} {
       allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || 
+        resource.data.userId == request.auth.uid ||
         isAdmin()
       );
-      allow create: if isAuthenticated();
-      allow update, delete: if false; // Immutable audit log
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (request.resource.data.userId == request.auth.uid && request.resource.data.actorRole == 'customer')
+      );
+      allow update, delete: if false;
     }
 
     // Studio Settings Collection
@@ -124,4 +161,3 @@ service cloud.firestore {
     }
   }
 }
-

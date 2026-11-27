@@ -5,11 +5,12 @@ import {
   Video, 
   MapPin, 
   Users, 
-  X
+  X 
 } from 'lucide-react';
 import { YogaClass, BookingType, Instructor } from '../../types';
 import { subscribeToClasses, createClass, cancelClass } from '../../services/classService';
 import { subscribeToInstructors } from '../../services/instructorService';
+import { sanitizeJitsiRoom, sanitizeText } from '../../utils/security';
 
 export const ClassList: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'online' | 'offline'>('all');
@@ -33,60 +34,76 @@ export const ClassList: React.FC = () => {
 
   const [formData, setFormData] = useState({
     title: '',
+    description: 'Guided GVYA alignment and breathwork session for balanced strength and mobility.',
     category: 'Vinyasa Yoga',
     instructorName: '',
     bookingType: 'online' as BookingType,
+    date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
     time: '09:00',
     durationMinutes: 60,
-    capacity: 20,
-    studioRoom: 'Studio Room A'
+    capacity: 25,
+    studioRoom: 'Main Hall A',
+    jitsiRoom: '',
   });
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    const effectiveInstructor = formData.instructorName || (instructors.length > 0 ? instructors[0].name : 'Lead Instructor');
-    const matchedInstructor = instructors.find(i => i.name === effectiveInstructor);
+    const effectiveInstructor =
+      formData.instructorName || (instructors.length > 0 ? instructors[0].name : 'Master Vijay');
+    const matchedInstructor = instructors.find((i) => i.name === effectiveInstructor);
+
+    const parsedStart = new Date(`${formData.date}T${formData.time}:00`);
+    const validStart = isNaN(parsedStart.getTime()) ? new Date(Date.now() + 3600000) : parsedStart;
+    const duration = Math.max(15, Number(formData.durationMinutes) || 60);
+    const validEnd = new Date(validStart.getTime() + duration * 60000);
+
     const newClassData = {
-      title: formData.title,
-      description: 'Mindful practice tailored for all levels.',
+      title: sanitizeText(formData.title, 120),
+      description: sanitizeText(formData.description, 300) || 'Mindful practice tailored for all levels.',
       category: formData.category,
-      instructorId: matchedInstructor?.instructorId || 'instructor_default',
+      instructorId: matchedInstructor?.instructorId || 'inst-vijay',
       instructorName: effectiveInstructor,
       bookingType: formData.bookingType,
-      startTime: new Date().toISOString(),
-      endTime: new Date(Date.now() + formData.durationMinutes * 60000).toISOString(),
-      durationMinutes: Number(formData.durationMinutes),
-      capacity: Number(formData.capacity),
+      startTime: validStart.toISOString(),
+      endTime: validEnd.toISOString(),
+      durationMinutes: duration,
+      capacity: Math.max(1, Number(formData.capacity) || 20),
       bookedSeats: 0,
-      meetingConfiguration: formData.bookingType === 'online' ? {
-        jitsiRoom: `yoga_studio_${Date.now()}`,
-        joinWindowMinutesBefore: 15
-      } : undefined,
-      location: formData.bookingType === 'offline' ? {
-        studioRoom: formData.studioRoom,
-        address: '108 Mindfulness Way, Suite 4B'
-      } : undefined,
+      meetingConfiguration:
+        formData.bookingType === 'online'
+          ? {
+              jitsiRoom: sanitizeJitsiRoom(formData.jitsiRoom || `GVYA_${formData.title}_${Date.now()}`),
+              joinWindowMinutesBefore: 15,
+            }
+          : undefined,
+      location:
+        formData.bookingType === 'offline'
+          ? {
+              studioRoom: sanitizeText(formData.studioRoom, 80) || 'Main Hall A',
+              address: 'GVYA Academy, 108 Temple Road, Chennai',
+            }
+          : undefined,
       cancellationPolicyHours: 12,
       status: 'scheduled' as const,
     };
 
     try {
       await createClass(newClassData);
-    } catch (_) {
-      // Optimistic local update
-      setClasses([{ ...newClassData, classId: `c_${Date.now()}` }, ...classes]);
-    }
+    } catch (_) {}
 
     setIsModalOpen(false);
     setFormData({
       title: '',
+      description: 'Guided GVYA alignment and breathwork session for balanced strength and mobility.',
       category: 'Vinyasa Yoga',
       instructorName: '',
       bookingType: 'online',
+      date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
       time: '09:00',
       durationMinutes: 60,
-      capacity: 20,
-      studioRoom: 'Studio Room A'
+      capacity: 25,
+      studioRoom: 'Main Hall A',
+      jitsiRoom: '',
     });
   };
 
@@ -94,9 +111,7 @@ export const ClassList: React.FC = () => {
     if (!confirm('Are you sure you want to cancel this class?')) return;
     try {
       await cancelClass(classId);
-    } catch (_) {
-      setClasses(classes.map((c) => c.classId === classId ? { ...c, status: 'cancelled' } : c));
-    }
+    } catch (_) {}
   };
 
   const filtered = classes.filter(c => {
@@ -108,12 +123,12 @@ export const ClassList: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 page-enter">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E9DCC5]/70">
         <div>
           <h1 className="font-serif text-3xl font-bold text-dark">Class Schedules & Sessions</h1>
-          <p className="text-sm text-dark-muted mt-1">Configure in-person studio classes and live video streaming sessions.</p>
+          <p className="text-sm text-dark-muted mt-1">Configure in-person studio classes and live HD video streaming sessions.</p>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
@@ -126,7 +141,6 @@ export const ClassList: React.FC = () => {
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-[#E9DCC5] flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Type Toggle Tabs */}
         <div className="flex items-center gap-1.5 p-1 bg-cream/60 rounded-xl border border-[#E9DCC5]">
           {(['all', 'online', 'offline'] as const).map((t) => (
             <button
@@ -143,7 +157,6 @@ export const ClassList: React.FC = () => {
           ))}
         </div>
 
-        {/* Search Input */}
         <div className="relative flex-1 max-w-sm">
           <Search className="w-4 h-4 text-dark-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -151,7 +164,7 @@ export const ClassList: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by class title, instructor or style..."
-            className="w-full pl-10 pr-4 py-2 bg-cream/30 border border-[#E9DCC5] rounded-xl text-xs focus:outline-none focus:border-burgundy"
+            className="w-full pl-10 pr-4 py-2 bg-cream/30 border border-[#E9DCC5] rounded-xl text-xs text-dark focus:outline-none focus:border-burgundy"
           />
         </div>
       </div>
@@ -183,9 +196,10 @@ export const ClassList: React.FC = () => {
 
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                     c.status === 'cancelled' ? 'bg-zinc-100 text-zinc-600' :
+                    c.status === 'live' ? 'bg-red-100 text-red-700 animate-pulse' :
                     isFull ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
                   }`}>
-                    {c.status === 'cancelled' ? 'Cancelled' : isFull ? 'Full' : 'Open'}
+                    {c.status === 'cancelled' ? 'Cancelled' : c.status === 'live' ? 'Live Now' : isFull ? 'Full' : 'Open'}
                   </span>
                 </div>
 
@@ -198,8 +212,10 @@ export const ClassList: React.FC = () => {
                     <span className="font-semibold text-dark">{c.instructorName}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Duration & Window:</span>
-                    <span className="font-semibold text-dark">{c.durationMinutes} mins &bull; 12h cancellation</span>
+                    <span>Schedule & Duration:</span>
+                    <span className="font-semibold text-dark">
+                      {new Date(c.startTime).toLocaleString()} ({c.durationMinutes}m)
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>{isOnline ? 'Meeting Room:' : 'Studio Room:'}</span>
@@ -210,7 +226,6 @@ export const ClassList: React.FC = () => {
                 </div>
               </div>
 
-              {/* Card Footer: Capacity & Actions */}
               <div className="mt-4 pt-2 flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 text-xs text-dark font-medium">
@@ -243,8 +258,8 @@ export const ClassList: React.FC = () => {
 
       {/* Add Class Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-xl border border-[#E9DCC5]">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 modal-backdrop">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-xl border border-[#E9DCC5] max-h-[90vh] overflow-y-auto modal-content">
             <div className="flex items-center justify-between pb-4 border-b border-[#E9DCC5]">
               <h2 className="font-serif text-xl font-bold text-dark">Schedule New Class</h2>
               <button 
@@ -257,14 +272,24 @@ export const ClassList: React.FC = () => {
 
             <form onSubmit={handleCreateClass} className="space-y-4 mt-4">
               <div>
-                <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Class Name</label>
+                <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Class Name *</label>
                 <input
                   type="text"
                   required
                   value={formData.title}
                   onChange={(e) => setFormData({...formData, title: e.target.value})}
-                  placeholder="e.g. Ashtanga Primary Series"
-                  className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs focus:outline-none focus:border-burgundy"
+                  placeholder="e.g. Evening Aerial Silk Decompression"
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
                 />
               </div>
 
@@ -274,13 +299,14 @@ export const ClassList: React.FC = () => {
                   <select
                     value={formData.category}
                     onChange={(e) => setFormData({...formData, category: e.target.value})}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs focus:outline-none focus:border-burgundy"
+                    className="w-full px-3 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
                   >
-                    <option>Hatha Yoga</option>
+                    <option>Kids Yoga</option>
+                    <option>Aerial Yoga</option>
+                    <option>Wheel Yoga</option>
+                    <option>Wall Yoga</option>
                     <option>Vinyasa Yoga</option>
-                    <option>Yin Yoga</option>
-                    <option>Ashtanga Yoga</option>
-                    <option>Meditation & Sound</option>
+                    <option>Pranayama Live</option>
                     <option>Yoga Therapy</option>
                   </select>
                 </div>
@@ -290,11 +316,45 @@ export const ClassList: React.FC = () => {
                   <select
                     value={formData.bookingType}
                     onChange={(e) => setFormData({...formData, bookingType: e.target.value as BookingType})}
-                    className="w-full px-3 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs focus:outline-none focus:border-burgundy"
+                    className="w-full px-3 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
                   >
-                    <option value="online">Online (Jitsi Live Stream)</option>
+                    <option value="online">Online (Jitsi Live Video)</option>
                     <option value="offline">Offline (Studio In-Person)</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.date}
+                    onChange={(e) => setFormData({...formData, date: e.target.value})}
+                    className="w-full px-3 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Start Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={formData.time}
+                    onChange={(e) => setFormData({...formData, time: e.target.value})}
+                    className="w-full px-3 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Duration (m)</label>
+                  <input
+                    type="number"
+                    min="15"
+                    max="180"
+                    value={formData.durationMinutes}
+                    onChange={(e) => setFormData({...formData, durationMinutes: Number(e.target.value)})}
+                    className="w-full px-3 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
+                  />
                 </div>
               </div>
 
@@ -305,7 +365,7 @@ export const ClassList: React.FC = () => {
                     <select
                       value={formData.instructorName || instructors[0].name}
                       onChange={(e) => setFormData({...formData, instructorName: e.target.value})}
-                      className="w-full px-3 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs focus:outline-none focus:border-burgundy"
+                      className="w-full px-3 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
                     >
                       {instructors.map((inst) => (
                         <option key={inst.instructorId} value={inst.name}>{inst.name}</option>
@@ -314,10 +374,10 @@ export const ClassList: React.FC = () => {
                   ) : (
                     <input
                       type="text"
-                      placeholder="e.g. Lead Instructor"
+                      placeholder="e.g. Master Vijay"
                       value={formData.instructorName}
                       onChange={(e) => setFormData({...formData, instructorName: e.target.value})}
-                      className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs focus:outline-none focus:border-burgundy"
+                      className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
                     />
                   )}
                 </div>
@@ -327,22 +387,33 @@ export const ClassList: React.FC = () => {
                   <input
                     type="number"
                     min="1"
-                    max="100"
+                    max="200"
                     value={formData.capacity}
                     onChange={(e) => setFormData({...formData, capacity: Number(e.target.value)})}
-                    className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs focus:outline-none focus:border-burgundy"
+                    className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
                   />
                 </div>
               </div>
 
-              {formData.bookingType === 'offline' && (
+              {formData.bookingType === 'offline' ? (
                 <div>
-                  <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Studio Sanctuary</label>
+                  <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Studio Sanctuary Room</label>
                   <input
                     type="text"
                     value={formData.studioRoom}
                     onChange={(e) => setFormData({...formData, studioRoom: e.target.value})}
-                    className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs focus:outline-none focus:border-burgundy"
+                    className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold text-dark-muted uppercase mb-1">Custom Jitsi Room Slug (Optional)</label>
+                  <input
+                    type="text"
+                    value={formData.jitsiRoom}
+                    onChange={(e) => setFormData({...formData, jitsiRoom: e.target.value})}
+                    placeholder="Auto-generated if left blank (e.g. GVYA_Evening_Flow)"
+                    className="w-full px-3.5 py-2 rounded-xl border border-[#E9DCC5] bg-cream/20 text-xs text-dark focus:outline-none focus:border-burgundy"
                   />
                 </div>
               )}

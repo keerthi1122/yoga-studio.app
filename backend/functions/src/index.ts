@@ -249,9 +249,10 @@ export const cancelBooking = functions.https.onCall<CancelBookingRequest>(async 
 
     // Fetch studio cancellation policy window
     const settingsSnap = await transaction.get(settingsRef);
+    const rawHours = settingsSnap.data()?.cancellationPolicyHours;
     const cancellationPolicyHours =
-      settingsSnap.exists && settingsSnap.data()?.cancellationPolicyHours
-        ? Number(settingsSnap.data()!.cancellationPolicyHours)
+      settingsSnap.exists && rawHours !== undefined && rawHours !== null
+        ? Number(rawHours)
         : 12;
 
     const classStartTime = bookingData.classStartTime?.toDate

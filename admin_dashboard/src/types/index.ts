@@ -10,6 +10,9 @@ export interface User {
   role: UserRole;
   status: UserStatus;
   activeMembershipId?: string;
+  activeMembershipName?: string;
+  selectedMode?: 'online' | 'offline' | 'hybrid';
+  selectedProps?: string[];
   remainingCredits: number;
   notificationPreferences?: {
     email: boolean;
@@ -47,7 +50,7 @@ export interface YogaClass {
   instructorName: string;
   instructorImage?: string;
   bookingType: BookingType;
-  startTime: string; // ISO string or formatted for frontend
+  startTime: string;
   endTime: string;
   durationMinutes: number;
   capacity: number;
@@ -90,6 +93,7 @@ export interface Booking {
   userId: string;
   userFullName: string;
   userEmail: string;
+  phone?: string;
   classId: string;
   classTitle: string;
   instructorName: string;
@@ -101,6 +105,7 @@ export interface Booking {
   creditDeducted: number;
   bookingStatus: BookingStatus;
   paymentStatus: PaymentStatus;
+  jitsiRoom?: string;
   cancellationReason?: string;
   cancelledAt?: string;
   createdAt: string;
@@ -125,11 +130,14 @@ export interface Payment {
   paymentId: string;
   userId: string;
   userFullName: string;
+  phone?: string;
+  email?: string;
   packageId: string;
   packageName: string;
+  selectedChoices?: string;
   amount: number;
   currency: string;
-  paymentMethod: 'card' | 'bank_transfer' | 'fps' | 'payme' | 'alipay' | 'simulated';
+  paymentMethod: 'card' | 'bank_transfer' | 'fps' | 'payme' | 'alipay' | 'simulated' | 'upi' | 'pay_at_studio';
   transactionId: string;
   proofUrl?: string;
   paymentStatus: PaymentStatus;
@@ -158,3 +166,67 @@ export interface StudioSettings {
   jitsiDefaultServer: string;
 }
 
+export type MembershipCategory = 'kids' | 'pro';
+
+export interface MembershipPlan {
+  planId: string;
+  name: string;
+  category: MembershipCategory;
+  durationMonths: number;
+  durationLabel: string;
+  monthlyPrice: number;
+  totalPrice: number;
+  currency: string;
+  weeklyFrequency: string;
+  includedClasses: string[];
+  features: string[];
+  bestValue: boolean;
+  freeTrialAvailable: boolean;
+  specialOfferText?: string;
+  active: boolean;
+  order: number;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface MembershipEnquiry {
+  enquiryId: string;
+  submissionType?: 'trial' | 'purchase' | 'class_booking';
+  fullName: string;
+  ageOrGroup?: string;
+  phone: string;
+  email?: string;
+  category: MembershipCategory;
+  planId?: string;
+  planName?: string;
+  durationMonths?: number;
+  monthlyPrice?: number;
+  totalPlanPrice?: number;
+  discountAmount?: number;
+  promoCode?: string;
+  amountPaid?: number;
+  paymentMethod?: 'upi' | 'card' | 'bank_transfer' | 'pay_at_studio' | 'free_trial';
+  transactionId?: string;
+  paymentStatus?: PaymentStatus;
+  selectedMode?: 'online' | 'offline' | 'hybrid';
+  selectedProps?: string[];
+  classId?: string;
+  classTitle?: string;
+  jitsiRoom?: string;
+  isFreeTrial: boolean;
+  preferredDays?: string;
+  preferredTime?: string;
+  notes?: string;
+  status: 'new' | 'contacted' | 'enrolled' | 'archived';
+  createdAt: string;
+}
+
+export interface StudioNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'announcement' | 'schedule_change' | 'reminder' | 'payment';
+  targetAudience: 'all_customers' | 'active_members' | 'today_attendees';
+  sentAt: string;
+  status: 'sent' | 'scheduled';
+}

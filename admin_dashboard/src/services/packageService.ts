@@ -9,15 +9,67 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Package } from '../types';
+import { readLocalCollection, writeLocalCollection, subscribeToLocalSync } from '../utils/localStoreSync';
 
 const COLLECTION_NAME = 'packages';
+const LOCAL_STORAGE_KEY_PACKAGES = 'gvya_packages_cache_v1';
+
+export const DEFAULT_GVYA_PACKAGES: Package[] = [
+  {
+    packageId: 'pkg-gvya-001',
+    name: '10-Session Props & Alignment Pass',
+    description: 'Access to any 10 Aerial, Wheel, or Wall Yoga masterclasses with Guinness Master Vijay and faculty.',
+    price: 3500,
+    currency: 'INR',
+    credits: 10,
+    validityDays: 60,
+    unlimited: false,
+    eligibleCategories: ['all'],
+    eligibleBookingTypes: ['online', 'offline'],
+    startDateRules: 'immediate',
+    active: true,
+  },
+  {
+    packageId: 'pkg-gvya-002',
+    name: 'Kids Weekend Immersion Pass (8 Sessions)',
+    description: 'Dedicated weekend batches for children focusing on agility, breath, and posture correction.',
+    price: 2200,
+    currency: 'INR',
+    credits: 8,
+    validityDays: 45,
+    unlimited: false,
+    eligibleCategories: ['Kids Yoga'],
+    eligibleBookingTypes: ['offline'],
+    startDateRules: 'immediate',
+    active: true,
+  },
+  {
+    packageId: 'pkg-gvya-003',
+    name: '1-Month Unlimited All-Access Studio Pass',
+    description: 'Unlimited access to all daily scheduled classes, open studio prop hours, and weekend master workshops.',
+    price: 4999,
+    currency: 'INR',
+    credits: 999,
+    validityDays: 30,
+    unlimited: true,
+    eligibleCategories: ['all'],
+    eligibleBookingTypes: ['online', 'offline'],
+    startDateRules: 'immediate',
+    active: true,
+  }
+];
 
 export const subscribeToPackages = (
   callback: (packages: Package[]) => void
 ) => {
+  const emitLocal = () => callback(readLocalCollection(LOCAL_STORAGE_KEY_PACKAGES, DEFAULT_GVYA_PACKAGES));
+  emitLocal();
+  const unsubLocal = subscribeToLocalSync(LOCAL_STORAGE_KEY_PACKAGES, emitLocal);
+
+  let unsubFirestore = () => {};
   try {
     const q = query(collection(db, COLLECTION_NAME));
-    return onSnapshot(
+    unsubFirestore = onSnapshot(
       q,
       (snapshot) => {
         if (!snapshot.empty) {
@@ -28,7 +80,7 @@ export const subscribeToPackages = (
               name: data.name || '',
               description: data.description || '',
               price: data.price || 0,
-              currency: data.currency || 'USD',
+              currency: data.currency || 'INR',
               credits: data.credits ?? 1,
               validityDays: data.validityDays || 30,
               unlimited: data.unlimited ?? false,
@@ -38,53 +90,79 @@ export const subscribeToPackages = (
               active: data.active ?? true,
             } as Package;
           });
+          writeLocalCollection(LOCAL_STORAGE_KEY_PACKAGES, list);
           callback(list);
         } else {
-          callback([]);
+          seedDefaultPackagesToFirestore();
+          emitLocal();
         }
       },
-      (error) => {
-        console.warn('[packageService] Firestore snapshot error:', error);
-        callback([]);
-      }
+      () => emitLocal()
     );
-  } catch (err) {
-    console.warn('[packageService] Could not establish Firestore connection:', err);
-    callback([]);
-    return () => {};
-  }
+  } catch {}
+
+  return () => {
+    unsubLocal();
+    unsubFirestore();
+  };
+};
+
+const seedDefaultPackagesToFirestore = async () => {
+  try {
+    for (const pkg of DEFAULT_GVYA_PACKAGES) {
+      await setDoc(doc(db, COLLECTION_NAME, pkg.packageId), {
+        ...pkg,
+        createdAt: serverTimestamp(),
+      });
+    }
+  } catch {}
 };
 
 export const createPackage = async (packageData: Omit<Package, 'packageId'>): Promise<string> => {
-  const newDocRef = doc(collection(db, COLLECTION_NAME));
-  await setDoc(newDocRef, {
+  const newId = `pkg_${Date.now()}`;
+  const newPkg: Package = {
     ...packageData,
-    packageId: newDocRef.id,
+    packageId: newId,
     active: true,
-    createdAt: serverTimestamp(),
-  });
-  return newDocRef.id;
+  };
+  const current = readLocalCollection(LOCAL_STORAGE_KEY_PACKAGES, DEFAULT_GVYA_PACKAGES);
+  writeLocalCollection(LOCAL_STORAGE_KEY_PACKAGES, [...current, newPkg]);
+
+  try {
+    const newDocRef = doc(collection(db, COLLECTION_NAME));
+    await setDoc(newDocRef, {
+      ...newPkg,
+      packageId: newDocRef.id,
+      createdAt: serverTimestamp(),
+    });
+    return newDocRef.id;
+  } catch {
+    return newId;
+  }
 };
 
 export const updatePackage = async (
   packageId: string, 
   updates: Partial<Package>
 ): Promise<void> => {
-  const pkgRef = doc(db, COLLECTION_NAME, packageId);
-  await updateDoc(pkgRef, {
-    ...updates,
-    updatedAt: serverTimestamp(),
-  });
+  const current = readLocalCollection(LOCAL_STORAGE_KEY_PACKAGES, DEFAULT_GVYA_PACKAGES);
+  writeLocalCollection(
+    LOCAL_STORAGE_KEY_PACKAGES,
+    current.map((p) => (p.packageId === packageId ? { ...p, ...updates } : p))
+  );
+
+  try {
+    const pkgRef = doc(db, COLLECTION_NAME, packageId);
+    await updateDoc(pkgRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  } catch {}
 };
 
 export const togglePackageActive = async (
   packageId: string, 
   currentActive: boolean
 ): Promise<void> => {
-  const pkgRef = doc(db, COLLECTION_NAME, packageId);
-  await updateDoc(pkgRef, {
-    active: !currentActive,
-    updatedAt: serverTimestamp(),
-  });
+  await updatePackage(packageId, { active: !currentActive });
 };
-

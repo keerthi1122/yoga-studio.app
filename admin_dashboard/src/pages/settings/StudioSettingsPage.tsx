@@ -5,20 +5,20 @@ import { subscribeToStudioSettings, updateStudioSettings } from '../../services/
 
 export const StudioSettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<StudioSettings>({
-    studioName: 'Prana Sanctuary Yoga & Wellness',
-    tagline: 'Mindful breathing, alignment, and holistic movement.',
-    contactEmail: 'contact@pranasanctuary.com',
-    contactPhone: '+1 (555) 789-0123',
+    studioName: 'Guinness Vijay Yoga Academy (GVYA)',
+    tagline: 'World-Record Yogic Alignment, Kids Agility & Pro Props Mastery.',
+    contactEmail: 'admissions@gvyayoga.com',
+    contactPhone: '+91 98400 12345',
     address: {
-      street: '108 Mindfulness Way, Suite 4B',
-      city: 'San Francisco',
-      state: 'CA',
-      postalCode: '94107',
-      country: 'United States'
+      street: '108 Temple Road, Mylapore',
+      city: 'Chennai',
+      state: 'Tamil Nadu',
+      postalCode: '600004',
+      country: 'India'
     },
-    currency: 'USD',
-    currencySymbol: '$',
-    timezone: 'America/Los_Angeles',
+    currency: 'INR',
+    currencySymbol: '₹',
+    timezone: 'Asia/Kolkata',
     cancellationPolicyHours: 12,
     allowSingleClassDropIn: true,
     jitsiDefaultServer: 'meet.jit.si'
